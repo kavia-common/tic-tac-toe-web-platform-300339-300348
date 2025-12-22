@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { loadScoreboard, saveScoreboard, clearScoreboard } from './storage';
+import { loadSettings, saveSettings } from './settingsStorage';
 
 /**
  * Ocean Professional Theme
@@ -41,8 +42,17 @@ function getAvailableMoves(squares) {
     .filter((v) => v !== null);
 }
 
-// Very simple AI: try win, block, center, corner, side
-function computeAIMove(squares, aiSymbol, humanSymbol) {
+/**
+ * AI strategies by difficulty
+ */
+function aiMoveEasy(squares) {
+  const avail = getAvailableMoves(squares);
+  if (!avail.length) return null;
+  return avail[Math.floor(Math.random() * avail.length)];
+}
+
+// Normal: win, block, center, corners, sides
+function aiMoveNormal(squares, aiSymbol, humanSymbol) {
   const avail = getAvailableMoves(squares);
 
   // Try to win
@@ -69,6 +79,62 @@ function computeAIMove(squares, aiSymbol, humanSymbol) {
   if (sides.length) return sides[Math.floor(Math.random() * sides.length)];
 
   return null;
+}
+
+// Hard: a lightweight minimax for Tic Tac Toe (solvable). Depth-prioritized scoring.
+function aiMoveHard(squares, aiSymbol, humanSymbol) {
+  const winnerInfo = calculateWinner(squares);
+  if (winnerInfo) return null;
+  const avail = getAvailableMoves(squares);
+  if (!avail.length) return null;
+
+  // Score: +10 win for AI, -10 win for human, 0 draw
+  function evaluate(board) {
+    const w = calculateWinner(board);
+    if (w?.player === aiSymbol) return 10;
+    if (w?.player === humanSymbol) return -10;
+    return 0;
+  }
+
+  function minimax(board, depth, isMax) {
+    const score = evaluate(board);
+    if (score !== 0) return score - depth * Math.sign(score); // prefer quicker wins / slower losses
+    if (getAvailableMoves(board).length === 0) return 0;
+
+    if (isMax) {
+      let best = -Infinity;
+      for (const i of getAvailableMoves(board)) {
+        const b = [...board];
+        b[i] = aiSymbol;
+        best = Math.max(best, minimax(b, depth + 1, false));
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (const i of getAvailableMoves(board)) {
+        const b = [...board];
+        b[i] = humanSymbol;
+        best = Math.min(best, minimax(b, depth + 1, true));
+      }
+      return best;
+    }
+  }
+
+  let bestScore = -Infinity;
+  let bestMove = null;
+
+  // Prefer center and corners when scores tie
+  const prefer = [4, 0, 2, 6, 8, 1, 3, 5, 7].filter((i) => avail.includes(i));
+  for (const i of prefer) {
+    const b = [...squares];
+    b[i] = aiSymbol;
+    const score = minimax(b, 0, false);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = i;
+    }
+  }
+  return bestMove ?? aiMoveNormal(squares, aiSymbol, humanSymbol);
 }
 
 /**
@@ -194,6 +260,85 @@ function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScore
   );
 }
 
+/**
+ * Settings panel for sounds, animations, and AI difficulty.
+ */
+// PUBLIC_INTERFACE
+function SettingsPanel({ open, onToggleOpen, settings, onChange }) {
+  /** Accessible settings UI with toggles and select, persisted by parent. */
+  return (
+    <>
+      <div className="settings-wrap">
+        <button
+          type="button"
+          className="settings-trigger"
+          aria-expanded={open ? 'true' : 'false'}
+          aria-controls="settings-panel"
+          onClick={onToggleOpen}
+        >
+          <span aria-hidden="true">⚙️</span>
+          <span>Settings</span>
+        </button>
+      </div>
+
+      {open && (
+        <section
+          id="settings-panel"
+          className="settings-panel"
+          aria-label="Game Settings"
+        >
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="sounds-toggle">Sounds</label>
+            <div className="settings-controls">
+              <input
+                id="sounds-toggle"
+                type="checkbox"
+                className="switch"
+                role="switch"
+                aria-checked={settings.soundsOn ? 'true' : 'false'}
+                checked={settings.soundsOn}
+                onChange={(e) => onChange({ ...settings, soundsOn: e.target.checked })}
+              />
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="animations-toggle">Animations</label>
+            <div className="settings-controls">
+              <input
+                id="animations-toggle"
+                type="checkbox"
+                className="switch"
+                role="switch"
+                aria-checked={settings.animationsOn ? 'true' : 'false'}
+                checked={settings.animationsOn}
+                onChange={(e) => onChange({ ...settings, animationsOn: e.target.checked })}
+              />
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="difficulty-select">AI Difficulty</label>
+            <div className="settings-controls">
+              <select
+                id="difficulty-select"
+                className="select"
+                aria-label="AI Difficulty"
+                value={settings.difficulty}
+                onChange={(e) => onChange({ ...settings, difficulty: e.target.value })}
+              >
+                <option value="easy">Easy</option>
+                <option value="normal">Normal</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
 // PUBLIC_INTERFACE
 function Status({ current, winner, draw, isPvC, aiSymbol, winningLine }) {
   /** Shows current game status with fade/slide transition. */
@@ -258,8 +403,12 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sound mute state (default unmuted)
-  const [muted, setMuted] = useState(false);
+  // Settings state
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState(() => loadSettings());
+
+  // Sound mute state derived from settings.soundsOn
+  const [muted, setMuted] = useState(() => !settings.soundsOn);
 
   // Preload audio refs
   const moveAudioRef = useRef(null);
@@ -294,33 +443,25 @@ function App() {
     resetAudioRef.current = createAudioSafely(SFX.reset);
   }, []);
 
-  const playSound = (type) => {
-    // Respect mute toggle
-    if (muted) return;
+  // Persist settings when they change
+  useEffect(() => {
+    saveSettings(settings);
+  }, [settings]);
 
-    const map = {
-      move: moveAudioRef.current,
-      win: winAudioRef.current,
-      draw: drawAudioRef.current,
-      reset: resetAudioRef.current,
-    };
-    const audio = map[type];
+  // Keep muted in sync with settings.soundsOn
+  useEffect(() => {
+    setMuted(!settings.soundsOn);
+  }, [settings.soundsOn]);
 
-    // If unsupported or not initialized, silently skip
-    if (!audio || !audio.src) return;
-
-    try {
-      audio.currentTime = 0;
-      const p = audio.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {
-          // Swallow any playback errors (autoplay policy or decoding issues)
-        });
-      }
-    } catch (_e) {
-      // ignore playback errors
+  // Toggle .animations-disabled on document body to globally disable transitions/animations
+  useEffect(() => {
+    const cls = 'animations-disabled';
+    if (!settings.animationsOn) {
+      document.body.classList.add(cls);
+    } else {
+      document.body.classList.remove(cls);
     }
-  };
+  }, [settings.animationsOn]);
 
   const winnerInfo = useMemo(() => calculateWinner(squares), [squares]);
   const winner = winnerInfo?.player ?? null;
@@ -354,7 +495,20 @@ function App() {
     if (!isAITurn) return;
 
     const timer = setTimeout(() => {
-      const move = computeAIMove(squares, aiSymbol, aiSymbol === 'X' ? 'O' : 'X');
+      const humanSymbol = aiSymbol === 'X' ? 'O' : 'X';
+      let move = null;
+      switch (settings.difficulty) {
+        case 'easy':
+          move = aiMoveEasy(squares);
+          break;
+        case 'hard':
+          move = aiMoveHard(squares, aiSymbol, humanSymbol);
+          break;
+        case 'normal':
+        default:
+          move = aiMoveNormal(squares, aiSymbol, humanSymbol);
+          break;
+      }
       if (move !== null && !squares[move] && !isGameOver) {
         const next = [...squares];
         next[move] = aiSymbol;
@@ -365,7 +519,7 @@ function App() {
     }, 450); // small delay for UX
 
     return () => clearTimeout(timer);
-  }, [isAITurn, squares, aiSymbol, isGameOver]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAITurn, squares, aiSymbol, isGameOver, settings.difficulty]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Increment scores when a round concludes + play end sounds
   useEffect(() => {
@@ -433,7 +587,35 @@ function App() {
 
   // PUBLIC_INTERFACE
   const handleToggleMute = () => {
-    setMuted((m) => !m);
+    setSettings((prev) => ({ ...prev, soundsOn: !prev.soundsOn }));
+  };
+
+  const playSound = (type) => {
+    // Respect mute toggle
+    if (muted) return;
+
+    const map = {
+      move: moveAudioRef.current,
+      win: winAudioRef.current,
+      draw: drawAudioRef.current,
+      reset: resetAudioRef.current,
+    };
+    const audio = map[type];
+
+    // If unsupported or not initialized, silently skip
+    if (!audio || !audio.src) return;
+
+    try {
+      audio.currentTime = 0;
+      const p = audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Swallow any playback errors (autoplay policy or decoding issues)
+        });
+      }
+    } catch (_e) {
+      // ignore playback errors
+    }
   };
 
   return (
@@ -447,6 +629,15 @@ function App() {
 
         <Scoreboard scores={scores} />
 
+        <div>
+          <SettingsPanel
+            open={settingsOpen}
+            onToggleOpen={() => setSettingsOpen((v) => !v)}
+            settings={settings}
+            onChange={setSettings}
+          />
+        </div>
+
         <Controls
           mode={mode}
           setMode={setMode}
@@ -459,7 +650,7 @@ function App() {
         />
 
         <Status
-          current={currentPlayer}
+          current={xIsNext ? 'X' : 'O'}
           winner={winner}
           draw={draw}
           isPvC={isPvC}

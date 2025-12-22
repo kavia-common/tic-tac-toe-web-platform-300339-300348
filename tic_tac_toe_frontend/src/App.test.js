@@ -40,6 +40,22 @@ test('renders Mute toggle control', () => {
   expect(screen.getByRole('button', { name: /Mute sounds|Mute|Unmute sounds|Unmute/i })).toBeInTheDocument();
 });
 
+test('renders Settings control and panel fields', () => {
+  render(<App />);
+  const settingsBtn = screen.getByRole('button', { name: /Settings/i });
+  expect(settingsBtn).toBeInTheDocument();
+
+  // Open settings
+  act(() => {
+    fireEvent.click(settingsBtn);
+  });
+
+  // Toggles and select should render
+  expect(screen.getByLabelText(/Sounds/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/Animations/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/AI Difficulty/i)).toBeInTheDocument();
+});
+
 test('initializes scoreboard from localStorage when present', () => {
   // Preload storage before render
   const preset = JSON.stringify({ X: 2, O: 3, draws: 1 });
