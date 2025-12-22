@@ -75,12 +75,15 @@ function computeAIMove(squares, aiSymbol, humanSymbol) {
  * Small inline audio assets (tiny data URIs) to avoid external files.
  * Each is a very short tone/chime encoded as wav via base64.
  * Preloaded once and reused. Kept subtle to match theme.
+ *
+ * Note: These are short valid WAVs. Playback is guarded by canPlayType checks.
  */
 const SFX = {
-  move: "data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAABkAAAAAAAAgP8AAP8AAID/AAD/AAAA/wAAAP8AAP8AAAD/AAAA/wAAAP8AAAD/AAAA", // soft click (very short)
-  win:  "data:audio/wav;base64,UklGRoQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAACEAAAAAAAAgP8AQP8AgP8AQH8AgP8AQH8AgP8AQH8AgP8A", // tiny chime
-  draw: "data:audio/wav;base64,UklGRoQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAACEAAAAAAAAgP8AAP8AgP8AAP8AgP8AAP8AgP8AAP8A", // neutral tone
-  reset:"data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAABkAAAAAAAAgP8AQH8AAP8AQH8AAP8AQH8AAP8A"  // whoosh-ish blip
+  // Minimal valid WAVs (very small beeps). If unsupported, playback will be skipped safely.
+  move: "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCwAAACABAAZGF0YQAAAAAAAP8AAP8AAAAA/wA=",
+  win:  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCwAAACABAAZGF0YQAAAAAAAP8AAAAAAP8AAP8A",
+  draw: "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCwAAACABAAZGF0YQAAAAAAAP8AAP8AAP8A",
+  reset:"data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCwAAACABAAZGF0YQAAAAAAAP8AAAAA/wAAAP8A"
 };
 
 // PUBLIC_INTERFACE
@@ -264,37 +267,58 @@ function App() {
   const drawAudioRef = useRef(null);
   const resetAudioRef = useRef(null);
 
+  // Helper: safely create Audio only if the format is supported
+  const createAudioSafely = (src) => {
+    try {
+      const el = new Audio();
+      if (!el || typeof el.canPlayType !== 'function') return null;
+
+      // Our sources are WAV data URIs. If WAV is not playable, skip creating.
+      const support = el.canPlayType('audio/wav');
+      if (!support) return null;
+
+      el.src = src;
+      el.preload = 'auto';
+      el.volume = 0.35;
+      return el;
+    } catch (_e) {
+      return null;
+    }
+  };
+
   // Initialize audio elements once
   useEffect(() => {
-    moveAudioRef.current = new Audio(SFX.move);
-    winAudioRef.current = new Audio(SFX.win);
-    drawAudioRef.current = new Audio(SFX.draw);
-    resetAudioRef.current = new Audio(SFX.reset);
-
-    // Preload by setting volume low and playing paused on mobile allowed after interaction; here we just set preload
-    [moveAudioRef.current, winAudioRef.current, drawAudioRef.current, resetAudioRef.current].forEach(a => {
-      a.preload = 'auto';
-      a.volume = 0.35;
-    });
+    moveAudioRef.current = createAudioSafely(SFX.move);
+    winAudioRef.current = createAudioSafely(SFX.win);
+    drawAudioRef.current = createAudioSafely(SFX.draw);
+    resetAudioRef.current = createAudioSafely(SFX.reset);
   }, []);
 
   const playSound = (type) => {
+    // Respect mute toggle
     if (muted) return;
+
     const map = {
       move: moveAudioRef.current,
       win: winAudioRef.current,
       draw: drawAudioRef.current,
-      reset: resetAudioRef.current
+      reset: resetAudioRef.current,
     };
     const audio = map[type];
-    if (audio) {
-      // Restart sound if already playing
-      try {
-        audio.currentTime = 0;
-        audio.play();
-      } catch (e) {
-        // ignore playback errors (e.g., autoplay restrictions)
+
+    // If unsupported or not initialized, silently skip
+    if (!audio || !audio.src) return;
+
+    try {
+      audio.currentTime = 0;
+      const p = audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Swallow any playback errors (autoplay policy or decoding issues)
+        });
       }
+    } catch (_e) {
+      // ignore playback errors
     }
   };
 
