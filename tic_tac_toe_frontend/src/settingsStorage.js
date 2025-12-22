@@ -8,14 +8,16 @@ function normalizeSettings(raw) {
     soundsOn: true,
     animationsOn: true,
     difficulty: 'normal', // 'easy' | 'normal' | 'hard'
+    boardSize: 3, // 3 | 4 | 5
   };
   if (!raw || typeof raw !== 'object') return defaults;
 
   const soundsOn = typeof raw.soundsOn === 'boolean' ? raw.soundsOn : defaults.soundsOn;
   const animationsOn = typeof raw.animationsOn === 'boolean' ? raw.animationsOn : defaults.animationsOn;
   const difficulty = ['easy', 'normal', 'hard'].includes(raw.difficulty) ? raw.difficulty : defaults.difficulty;
+  const boardSize = [3, 4, 5].includes(raw.boardSize) ? raw.boardSize : defaults.boardSize;
 
-  return { soundsOn, animationsOn, difficulty };
+  return { soundsOn, animationsOn, difficulty, boardSize };
 }
 
 // PUBLIC_INTERFACE

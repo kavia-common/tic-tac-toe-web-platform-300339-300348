@@ -13,7 +13,8 @@ function normalizeEntry(raw) {
 
   const isISO = typeof timestamp === 'string' && !Number.isNaN(Date.parse(timestamp));
   const validWinner = winner === 'X' || winner === 'O' || winner === 'Draw';
-  const validMoves = Number.isInteger(moveCount) && moveCount >= 0 && moveCount <= 9;
+  // Allow up to 25 to support up to 5x5 board sizes
+  const validMoves = Number.isInteger(moveCount) && moveCount >= 0 && moveCount <= 25;
   const validDifficulty = ['easy', 'normal', 'hard'].includes(difficulty);
   const validStarter = starter === 'X' || starter === 'O' || starter === undefined;
 

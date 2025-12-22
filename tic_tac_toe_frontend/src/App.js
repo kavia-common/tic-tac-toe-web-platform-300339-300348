@@ -15,23 +15,54 @@ import { getHistory, addEntry as addHistoryEntry, clearHistory as clearHistorySt
  * subtle gradient: from blue to gray
  */
 
-// Helpers
-const emptyBoard = () => Array(9).fill(null);
-const WIN_LINES = [
-  [0, 1, 2], // rows
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6], // cols
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8], // diagonals
-  [2, 4, 6],
-];
+/**
+ * Board helpers for dynamic sizes
+ */
+const emptyBoard = (n = 3) => Array(n * n).fill(null);
 
-function calculateWinner(squares) {
-  for (const [a, b, c] of WIN_LINES) {
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return { player: squares[a], line: [a, b, c] };
+/**
+ * Generate all winning lines for an N x N board (rows, cols, both diagonals).
+ */
+function generateWinLines(n) {
+  const lines = [];
+  // rows
+  for (let r = 0; r < n; r++) {
+    const row = [];
+    for (let c = 0; c < n; c++) row.push(r * n + c);
+    lines.push(row);
+  }
+  // cols
+  for (let c = 0; c < n; c++) {
+    const col = [];
+    for (let r = 0; r < n; r++) col.push(r * n + c);
+    lines.push(col);
+  }
+  // diag TL->BR
+  const d1 = [];
+  for (let i = 0; i < n; i++) d1.push(i * n + i);
+  lines.push(d1);
+  // diag TR->BL
+  const d2 = [];
+  for (let i = 0; i < n; i++) d2.push(i * n + (n - 1 - i));
+  lines.push(d2);
+
+  return lines;
+}
+
+function calculateWinnerGeneric(squares, n) {
+  const lines = generateWinLines(n);
+  for (const line of lines) {
+    const first = squares[line[0]];
+    if (!first) continue;
+    let allMatch = true;
+    for (let i = 1; i < line.length; i++) {
+      if (squares[line[i]] !== first) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) {
+      return { player: first, line };
     }
   }
   return null;
@@ -52,46 +83,56 @@ function aiMoveEasy(squares) {
   return avail[Math.floor(Math.random() * avail.length)];
 }
 
-// Normal: win, block, center, corners, sides
-function aiMoveNormal(squares, aiSymbol, humanSymbol) {
+// Normal: win, block, center, corners, sides (generalized for N)
+function aiMoveNormal(squares, aiSymbol, humanSymbol, n) {
   const avail = getAvailableMoves(squares);
 
   // Try to win
   for (const i of avail) {
     const temp = [...squares];
     temp[i] = aiSymbol;
-    if (calculateWinner(temp)?.player === aiSymbol) return i;
+    if (calculateWinnerGeneric(temp, n)?.player === aiSymbol) return i;
   }
   // Try to block
   for (const i of avail) {
     const temp = [...squares];
     temp[i] = humanSymbol;
-    if (calculateWinner(temp)?.player === humanSymbol) return i;
+    if (calculateWinnerGeneric(temp, n)?.player === humanSymbol) return i;
   }
-  // Center
-  if (avail.includes(4)) return 4;
+
+  // Center (if N odd, take true center)
+  const centerIdx = n % 2 === 1 ? Math.floor((n * n) / 2) : null;
+  if (centerIdx !== null && avail.includes(centerIdx)) return centerIdx;
 
   // Corners
-  const corners = [0, 2, 6, 8].filter((i) => avail.includes(i));
+  const corners = [0, n - 1, n * (n - 1), n * n - 1].filter((i) => avail.includes(i));
   if (corners.length) return corners[Math.floor(Math.random() * corners.length)];
 
-  // Sides
-  const sides = [1, 3, 5, 7].filter((i) => avail.includes(i));
-  if (sides.length) return sides[Math.floor(Math.random() * sides.length)];
+  // Simple heuristic: pick any available from first row/col, else random
+  const firstRow = Array.from({ length: n }, (_, c) => c).filter((i) => avail.includes(i));
+  if (firstRow.length) return firstRow[Math.floor(Math.random() * firstRow.length)];
 
-  return null;
+  const firstCol = Array.from({ length: n }, (_, r) => r * n).filter((i) => avail.includes(i));
+  if (firstCol.length) return firstCol[Math.floor(Math.random() * firstCol.length)];
+
+  // Fallback random
+  if (!avail.length) return null;
+  return avail[Math.floor(Math.random() * avail.length)];
 }
 
-// Hard: a lightweight minimax for Tic Tac Toe (solvable). Depth-prioritized scoring.
-function aiMoveHard(squares, aiSymbol, humanSymbol) {
-  const winnerInfo = calculateWinner(squares);
+// Hard: for 3x3 use minimax; for larger boards fall back to normal (performance).
+function aiMoveHard(squares, aiSymbol, humanSymbol, n) {
+  // If not 3x3, revert to normal heuristic strategy
+  if (n !== 3) return aiMoveNormal(squares, aiSymbol, humanSymbol, n);
+
+  const winnerInfo = calculateWinnerGeneric(squares, n);
   if (winnerInfo) return null;
   const avail = getAvailableMoves(squares);
   if (!avail.length) return null;
 
   // Score: +10 win for AI, -10 win for human, 0 draw
   function evaluate(board) {
-    const w = calculateWinner(board);
+    const w = calculateWinnerGeneric(board, n);
     if (w?.player === aiSymbol) return 10;
     if (w?.player === humanSymbol) return -10;
     return 0;
@@ -125,8 +166,8 @@ function aiMoveHard(squares, aiSymbol, humanSymbol) {
   let bestMove = null;
 
   // Prefer center and corners when scores tie
-  const prefer = [4, 0, 2, 6, 8, 1, 3, 5, 7].filter((i) => avail.includes(i));
-  for (const i of prefer) {
+  const preferIdx = [4, 0, 2, 6, 8, 1, 3, 5, 7].filter((i) => avail.includes(i));
+  for (const i of preferIdx) {
     const b = [...squares];
     b[i] = aiSymbol;
     const score = minimax(b, 0, false);
@@ -135,7 +176,7 @@ function aiMoveHard(squares, aiSymbol, humanSymbol) {
       bestMove = i;
     }
   }
-  return bestMove ?? aiMoveNormal(squares, aiSymbol, humanSymbol);
+  return bestMove ?? aiMoveNormal(squares, aiSymbol, humanSymbol, n);
 }
 
 /**
@@ -170,8 +211,8 @@ function Square({ value, onClick, isWinning, disabled, index }) {
 }
 
 // PUBLIC_INTERFACE
-function Board({ squares, onPlay, winningLine, isLocked }) {
-  /** 3x3 Board displaying 9 squares. */
+function Board({ squares, onPlay, winningLine, isLocked, boardSize }) {
+  /** N x N Board displaying squares. */
   const renderSquare = (i) => {
     const isWinning = winningLine?.includes(i);
     return (
@@ -186,8 +227,10 @@ function Board({ squares, onPlay, winningLine, isLocked }) {
     );
   };
 
+  const boardClass = `ttt-board board-${boardSize}`;
+
   return (
-    <div className="ttt-board" role="grid" aria-label="Tic Tac Toe board">
+    <div className={boardClass} role="grid" aria-label={`Tic Tac Toe board ${boardSize} by ${boardSize}`}>
       {squares.map((_, i) => renderSquare(i))}
     </div>
   );
@@ -334,6 +377,23 @@ function SettingsPanel({ open, onToggleOpen, settings, onChange }) {
               </select>
             </div>
           </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="boardsize-select">Board Size</label>
+            <div className="settings-controls">
+              <select
+                id="boardsize-select"
+                className="select"
+                aria-label="Board Size"
+                value={settings.boardSize}
+                onChange={(e) => onChange({ ...settings, boardSize: Number(e.target.value) })}
+              >
+                <option value={3}>3 x 3</option>
+                <option value={4}>4 x 4</option>
+                <option value={5}>5 x 5</option>
+              </select>
+            </div>
+          </div>
         </section>
       )}
     </>
@@ -466,7 +526,7 @@ function App() {
    * - Adds subtle animations and sound effects with a mute toggle.
    * - Records match history with timestamps and settings.
    */
-  const [squares, setSquares] = useState(emptyBoard);
+  const [squares, setSquares] = useState(() => emptyBoard(loadSettings().boardSize || 3));
   const [mode, setMode] = useState('pvc'); // 'pvp' | 'pvc'
   const [starter, setStarter] = useState('X'); // 'X' | 'O'
   const [xIsNext, setXIsNext] = useState(true);
@@ -551,7 +611,9 @@ function App() {
     }
   }, [settings.animationsOn]);
 
-  const winnerInfo = useMemo(() => calculateWinner(squares), [squares]);
+  const boardSize = settings.boardSize || 3;
+
+  const winnerInfo = useMemo(() => calculateWinnerGeneric(squares, boardSize), [squares, boardSize]);
   const winner = winnerInfo?.player ?? null;
   const winningLine = winnerInfo?.line ?? null;
 
@@ -590,11 +652,11 @@ function App() {
           move = aiMoveEasy(squares);
           break;
         case 'hard':
-          move = aiMoveHard(squares, aiSymbol, humanSymbol);
+          move = aiMoveHard(squares, aiSymbol, humanSymbol, boardSize);
           break;
         case 'normal':
         default:
-          move = aiMoveNormal(squares, aiSymbol, humanSymbol);
+          move = aiMoveNormal(squares, aiSymbol, humanSymbol, boardSize);
           break;
       }
       if (move !== null && !squares[move] && !isGameOver) {
@@ -607,7 +669,7 @@ function App() {
     }, 450); // small delay for UX
 
     return () => clearTimeout(timer);
-  }, [isAITurn, squares, aiSymbol, isGameOver, settings.difficulty]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAITurn, squares, aiSymbol, isGameOver, settings.difficulty, boardSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Increment scores when a round concludes + play end sounds
   useEffect(() => {
@@ -651,12 +713,12 @@ function App() {
   }, [isGameOver]);
 
   const resetBoardKeepScores = (newStarter) => {
-    setSquares(emptyBoard());
+    setSquares(emptyBoard(boardSize));
     setXIsNext((newStarter ?? starter) === 'X');
   };
 
   const resetForStarter = (newStarter) => {
-    setSquares(emptyBoard());
+    setSquares(emptyBoard(boardSize));
     setStarter(newStarter);
     setXIsNext(newStarter === 'X');
   };
@@ -666,6 +728,13 @@ function App() {
     resetForStarter(starter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // Reset board when board size changes
+  useEffect(() => {
+    setSquares(emptyBoard(boardSize));
+    setXIsNext(starter === 'X');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardSize]);
 
   // If starter flips, reset game accordingly (scores persist)
   useEffect(() => {
@@ -829,6 +898,7 @@ function App() {
             onPlay={handleUserMove}
             winningLine={winningLine}
             isLocked={isAITurn || isGameOver}
+            boardSize={boardSize}
           />
         </section>
 

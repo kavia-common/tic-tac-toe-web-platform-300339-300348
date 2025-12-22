@@ -64,6 +64,7 @@ test('renders Settings control and panel fields', () => {
   expect(screen.getByLabelText(/Sounds/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/Animations/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/AI Difficulty/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/Board Size/i)).toBeInTheDocument();
 });
 
 test('initializes scoreboard from localStorage when present', () => {
@@ -347,4 +348,67 @@ test('invalid import shows warning and does not modify history', async () => {
     const parsed = JSON.parse(last);
     expect(parsed.length).toBeGreaterThanOrEqual(1);
   }
+});
+
+test('board size 4x4 renders 16 cells and detects a row win (N=4)', () => {
+  // default settings, then change board size to 4 in UI
+  render(<App />);
+  const settingsBtn = screen.getByRole('button', { name: /Settings/i });
+  act(() => { fireEvent.click(settingsBtn); });
+  const sizeSelect = screen.getByLabelText(/Board Size/i);
+  act(() => { fireEvent.change(sizeSelect, { target: { value: '4' } }); });
+
+  // 4x4 should have cells 1..16
+  for (let i = 1; i <= 16; i++) {
+    expect(screen.getByRole('button', { name: new RegExp(`Cell ${i}:`, 'i') })).toBeInTheDocument();
+  }
+
+  // Switch to PvP to control moves precisely
+  const pvpBtn = screen.getByRole('radio', { name: /Player vs Player/i });
+  act(() => { fireEvent.click(pvpBtn); });
+
+  // Make top row win for X: cells 1,2,3,4 (indexes 0..3)
+  const cell = (n) => screen.getByRole('button', { name: new RegExp(`Cell ${n}:`, 'i') });
+  act(() => {
+    fireEvent.click(cell(1)); // X
+    fireEvent.click(cell(5)); // O
+    fireEvent.click(cell(2)); // X
+    fireEvent.click(cell(6)); // O
+    fireEvent.click(cell(3)); // X
+    fireEvent.click(cell(7)); // O
+    fireEvent.click(cell(4)); // X -> win
+  });
+
+  expect(screen.getByText(/X wins/i)).toBeInTheDocument();
+});
+
+test('board size 5x5 renders 25 cells and detects a diagonal win (N=5)', () => {
+  render(<App />);
+  const settingsBtn = screen.getByRole('button', { name: /Settings/i });
+  act(() => { fireEvent.click(settingsBtn); });
+  const sizeSelect = screen.getByLabelText(/Board Size/i);
+  act(() => { fireEvent.change(sizeSelect, { target: { value: '5' } }); });
+
+  for (let i = 1; i <= 25; i++) {
+    expect(screen.getByRole('button', { name: new RegExp(`Cell ${i}:`, 'i') })).toBeInTheDocument();
+  }
+
+  const pvpBtn = screen.getByRole('radio', { name: /Player vs Player/i });
+  act(() => { fireEvent.click(pvpBtn); });
+
+  const cell = (n) => screen.getByRole('button', { name: new RegExp(`Cell ${n}:`, 'i') });
+  // Diagonal TL->BR: cells 1,7,13,19,25 (indexes 0,6,12,18,24)
+  act(() => {
+    fireEvent.click(cell(1));  // X
+    fireEvent.click(cell(2));  // O
+    fireEvent.click(cell(7));  // X
+    fireEvent.click(cell(3));  // O
+    fireEvent.click(cell(13)); // X
+    fireEvent.click(cell(4));  // O
+    fireEvent.click(cell(19)); // X
+    fireEvent.click(cell(5));  // O
+    fireEvent.click(cell(25)); // X -> win
+  });
+
+  expect(screen.getByText(/X wins/i)).toBeInTheDocument();
 });
