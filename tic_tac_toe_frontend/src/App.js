@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
+import { loadScoreboard, saveScoreboard, clearScoreboard } from './storage';
 
 /**
  * Ocean Professional Theme
@@ -244,6 +245,16 @@ function App() {
   // Scores state: cumulative across rounds
   const [scores, setScores] = useState({ X: 0, O: 0, draws: 0 });
 
+  // On first mount, initialize scores from localStorage if available
+  useEffect(() => {
+    const persisted = loadScoreboard();
+    if (persisted) {
+      setScores(persisted);
+    }
+    // run only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Sound mute state (default unmuted)
   const [muted, setMuted] = useState(false);
 
@@ -335,10 +346,20 @@ function App() {
   // Increment scores when a round concludes + play end sounds
   useEffect(() => {
     if (winner) {
-      setScores((prev) => ({ ...prev, [winner]: prev[winner] + 1 }));
+      setScores((prev) => {
+        const updated = { ...prev, [winner]: prev[winner] + 1 };
+        // persist new scores
+        saveScoreboard(updated);
+        return updated;
+      });
       playSound('win');
     } else if (!winner && draw) {
-      setScores((prev) => ({ ...prev, draws: prev.draws + 1 }));
+      setScores((prev) => {
+        const updated = { ...prev, draws: prev.draws + 1 };
+        // persist new scores
+        saveScoreboard(updated);
+        return updated;
+      });
       playSound('draw');
     }
     // Only trigger when a game ends
@@ -378,7 +399,10 @@ function App() {
   // PUBLIC_INTERFACE
   const handleResetScores = () => {
     // Reset all scores and board
-    setScores({ X: 0, O: 0, draws: 0 });
+    const zeroed = { X: 0, O: 0, draws: 0 };
+    setScores(zeroed);
+    // clear persisted scoreboard
+    clearScoreboard();
     resetForStarter(starter);
     playSound('reset');
   };
