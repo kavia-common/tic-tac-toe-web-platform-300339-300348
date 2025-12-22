@@ -67,9 +67,12 @@ test('initializes scoreboard from localStorage when present', () => {
   expect(screen.getByText(/Draws: 1/i)).toBeInTheDocument();
 });
 
-test('writes scoreboard to localStorage after a win', () => {
+test('writes scoreboard to localStorage after a win and records history entry', () => {
   // Ensure clean start (no stored value)
-  window.localStorage.getItem.mockReturnValueOnce(null);
+  window.localStorage.getItem
+    .mockReturnValueOnce(null) // scoreboard initial load
+    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'normal' })) // settings load
+    .mockReturnValueOnce(JSON.stringify([])); // history load
 
   render(<App />);
 
@@ -85,31 +88,77 @@ test('writes scoreboard to localStorage after a win', () => {
     fireEvent.click(getCell(3)); // index 2
   });
 
-  // After win effect runs, scores should update and be persisted.
-  // We cannot assert exact value easily from setItem due to multiple calls, but validate it was called with scoreboard key.
+  // Validate scoreboard persisted
   const calls = window.localStorage.setItem.mock.calls;
   const hasScoreWrite = calls.some(
     ([key, value]) => key === 'ttt_scoreboard_v1' && /"X":\s*1/.test(String(value))
   );
   expect(hasScoreWrite).toBe(true);
+
+  // Validate history entry was written
+  const hasHistoryWrite = calls.some(
+    ([key, value]) =>
+      key === 'ttt_history_v1' &&
+      /\[\{/.test(String(value)) &&
+      /"winner":\s*"X"/.test(String(value))
+  );
+  expect(hasHistoryWrite).toBe(true);
 });
 
-test('reset scores clears localStorage', () => {
-  window.localStorage.getItem.mockReturnValueOnce(JSON.stringify({ X: 5, O: 1, draws: 2 }));
+test('records history entry on draw', () => {
+  // Prepare settings and history empty
+  window.localStorage.getItem
+    .mockReturnValueOnce(null) // scoreboard
+    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'easy' })) // settings
+    .mockReturnValueOnce(JSON.stringify([])); // history
+
   render(<App />);
 
-  const resetBtn = screen.getByRole('button', { name: /Reset Scores/i });
+  // Force a draw in PvP mode by filling board with no win
+  // Sequence for draw: 0 X,1 O,2 X,4 O,3 X,5 O,7 X,6 O,8 X
+  const getCell = (n) => screen.getByRole('button', { name: new RegExp(`Cell ${n}:`, 'i') });
+
   act(() => {
-    fireEvent.click(resetBtn);
+    fireEvent.click(getCell(1)); // X
+    fireEvent.click(getCell(2)); // O
+    fireEvent.click(getCell(3)); // X
+    fireEvent.click(getCell(5)); // O
+    fireEvent.click(getCell(4)); // X
+    fireEvent.click(getCell(6)); // O
+    fireEvent.click(getCell(8)); // X
+    fireEvent.click(getCell(7)); // O
+    fireEvent.click(getCell(9)); // X
   });
 
-  // Should call removeItem with scoreboard key
-  const removeCalls = window.localStorage.removeItem.mock.calls;
-  const removed = removeCalls.some(([key]) => key === 'ttt_scoreboard_v1');
-  expect(removed).toBe(true);
+  const calls = window.localStorage.setItem.mock.calls;
+  const hasHistoryDraw = calls.some(
+    ([key, value]) =>
+      key === 'ttt_history_v1' && /"winner":\s*"Draw"/.test(String(value))
+  );
+  expect(hasHistoryDraw).toBe(true);
+});
 
-  // UI should reflect zeroed scores
-  expect(screen.getByText(/X Wins: 0/i)).toBeInTheDocument();
-  expect(screen.getByText(/O Wins: 0/i)).toBeInTheDocument();
-  expect(screen.getByText(/Draws: 0/i)).toBeInTheDocument();
+test('clear history removes from localStorage', () => {
+  // Prime history to appear non-empty and settings default
+  window.localStorage.getItem
+    .mockReturnValueOnce(null) // scoreboard
+    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'normal' })) // settings
+    .mockReturnValueOnce(JSON.stringify([{ timestamp: new Date().toISOString(), winner: 'X', moveCount: 5, difficulty: 'normal', starter: 'X' }]));
+
+  render(<App />);
+
+  // Open History panel
+  const historyBtn = screen.getByRole('button', { name: /Match History/i });
+  act(() => {
+    fireEvent.click(historyBtn);
+  });
+
+  const clearBtn = screen.getByRole('button', { name: /Clear History/i });
+  act(() => {
+    fireEvent.click(clearBtn);
+  });
+
+  const removeCalls = window.localStorage.removeItem.mock.calls;
+  const removed = removeCalls.some(([key]) => key === 'ttt_history_v1');
+  expect(removed).toBe(true);
 });

@@ -430,3 +430,54 @@ html, body, #root {
 @media (max-width: 380px) {
   :root { --square-size: 94px; }
 }
+
+/* History styles */
+.history-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, rgba(17,24,39,0.02), rgba(255,255,255,0.9));
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-sm);
+}
+
+.history-index {
+  font-weight: 800;
+  color: rgba(17,24,39,0.7);
+  min-width: 28px;
+  text-align: right;
+}
+
+.history-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 12px;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.badge-x {
+  background: var(--primary);
+}
+
+.badge-o {
+  background: var(--secondary);
+}
+
+.badge-draw {
+  background: #6b7280; /* neutral gray */
+}
+
+.history-info {
+  color: rgba(17,24,39,0.75);
+  font-size: 13px;
+}

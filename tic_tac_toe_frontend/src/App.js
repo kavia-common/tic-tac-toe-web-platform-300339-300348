@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { loadScoreboard, saveScoreboard, clearScoreboard } from './storage';
 import { loadSettings, saveSettings } from './settingsStorage';
+import { getHistory, addEntry as addHistoryEntry, clearHistory as clearHistoryStorage } from './historyStorage';
 
 /**
  * Ocean Professional Theme
@@ -377,6 +378,68 @@ function Scoreboard({ scores }) {
 }
 
 // PUBLIC_INTERFACE
+function HistoryPanel({ open, onToggleOpen, history, onClear }) {
+  /** Collapsible history panel listing recent matches newest first. */
+  return (
+    <>
+      <div className="settings-wrap" style={{ justifyContent: 'flex-start' }}>
+        <button
+          type="button"
+          className="settings-trigger"
+          aria-expanded={open ? 'true' : 'false'}
+          aria-controls="history-panel"
+          onClick={onToggleOpen}
+        >
+          <span aria-hidden="true">🕒</span>
+          <span>Match History</span>
+        </button>
+      </div>
+
+      {open && (
+        <section id="history-panel" className="settings-panel" aria-label="Match History">
+          <div className="settings-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="settings-label">Recent Games</div>
+            <div className="settings-controls">
+              <button className="btn btn-primary" onClick={onClear}>Clear History</button>
+            </div>
+          </div>
+
+          {history.length === 0 ? (
+            <div className="ttt-status-subtle">No games played yet.</div>
+          ) : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 }}>
+              {history.map((h, idx) => {
+                const indexLabel = history.length - idx; // 1-based, newest has highest index
+                const d = new Date(h.timestamp);
+                const when = isNaN(d.getTime()) ? h.timestamp : d.toLocaleString();
+                let badgeClass = 'badge-draw';
+                let badgeText = 'Draw';
+                if (h.winner === 'X') {
+                  badgeClass = 'badge-x';
+                  badgeText = 'X';
+                } else if (h.winner === 'O') {
+                  badgeClass = 'badge-o';
+                  badgeText = 'O';
+                }
+                return (
+                  <li key={`${h.timestamp}-${idx}`} className="history-row">
+                    <span className="history-index">#{indexLabel}</span>
+                    <span className={`history-badge ${badgeClass}`} aria-label={`Winner ${badgeText}`}>{badgeText}</span>
+                    <span className="history-info">
+                      {when} • Moves: {h.moveCount} • Difficulty: {h.difficulty}{h.starter ? ` • Starter: ${h.starter}` : ''}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+    </>
+  );
+}
+
+// PUBLIC_INTERFACE
 function App() {
   /**
    * Main application: Tic Tac Toe game with PvP and PvC modes.
@@ -384,6 +447,7 @@ function App() {
    * - Highlights winning line and shows status.
    * - Tracks cumulative scores across rounds.
    * - Adds subtle animations and sound effects with a mute toggle.
+   * - Records match history with timestamps and settings.
    */
   const [squares, setSquares] = useState(emptyBoard);
   const [mode, setMode] = useState('pvc'); // 'pvp' | 'pvc'
@@ -409,6 +473,10 @@ function App() {
 
   // Sound mute state derived from settings.soundsOn
   const [muted, setMuted] = useState(() => !settings.soundsOn);
+
+  // History state and visibility
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState(() => getHistory());
 
   // Preload audio refs
   const moveAudioRef = useRef(null);
@@ -544,6 +612,24 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winner, draw]);
 
+  // Record match history when a game ends
+  useEffect(() => {
+    if (!isGameOver) return;
+    // Count moves made in this game (non-null squares)
+    const moveCount = squares.filter(Boolean).length;
+    const entry = {
+      timestamp: new Date().toISOString(),
+      winner: winner ? winner : 'Draw',
+      moveCount,
+      difficulty: settings.difficulty,
+      starter,
+    };
+    addHistoryEntry(entry);
+    // Update local state view to include the newly added entry
+    setHistory(getHistory());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGameOver]);
+
   const resetBoardKeepScores = (newStarter) => {
     setSquares(emptyBoard());
     setXIsNext((newStarter ?? starter) === 'X');
@@ -588,6 +674,12 @@ function App() {
   // PUBLIC_INTERFACE
   const handleToggleMute = () => {
     setSettings((prev) => ({ ...prev, soundsOn: !prev.soundsOn }));
+  };
+
+  // PUBLIC_INTERFACE
+  const handleClearHistory = () => {
+    clearHistoryStorage();
+    setHistory([]);
   };
 
   const playSound = (type) => {
@@ -666,6 +758,13 @@ function App() {
             isLocked={isAITurn || isGameOver}
           />
         </section>
+
+        <HistoryPanel
+          open={historyOpen}
+          onToggleOpen={() => setHistoryOpen((v) => !v)}
+          history={history}
+          onClear={handleClearHistory}
+        />
 
         <footer className="ocean-footer">
           <span className="hint">Tip: Use New Round to continue keeping scores, or Reset Scores to start over.</span>
