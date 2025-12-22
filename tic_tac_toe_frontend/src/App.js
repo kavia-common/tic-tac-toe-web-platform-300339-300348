@@ -111,8 +111,8 @@ function Board({ squares, onPlay, winningLine, isLocked }) {
 }
 
 // PUBLIC_INTERFACE
-function Controls({ mode, setMode, starter, setStarter, onReset }) {
-  /** Controls for game mode, starting player, and reset. */
+function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScores }) {
+  /** Controls for game mode, starting player, new round, and reset scores. */
   return (
     <div className="ttt-controls">
       <div className="ttt-control-row">
@@ -160,8 +160,10 @@ function Controls({ mode, setMode, starter, setStarter, onReset }) {
         </div>
       </div>
 
-      <div className="ttt-control-row ttt-actions">
-        <button className="btn btn-primary" onClick={onReset}>Reset Game</button>
+      <div className="ttt-control-row ttt-actions" aria-label="Round controls">
+        <button className="btn btn-primary" onClick={onNewRound}>New Round</button>
+        <div style={{ width: 8 }} />
+        <button className="btn btn-primary" onClick={onResetScores}>Reset Scores</button>
       </div>
     </div>
   );
@@ -194,16 +196,31 @@ function Status({ current, winner, draw, isPvC, aiSymbol, winningLine }) {
 }
 
 // PUBLIC_INTERFACE
+function Scoreboard({ scores }) {
+  /** Displays cumulative round-based scores. */
+  return (
+    <section className="ttt-status" aria-label="Scores">
+      <div className="ttt-status-text">Scores</div>
+      <div className="ttt-status-subtle">X Wins: {scores.X} • O Wins: {scores.O} • Draws: {scores.draws}</div>
+    </section>
+  );
+}
+
+// PUBLIC_INTERFACE
 function App() {
   /**
    * Main application: Tic Tac Toe game with PvP and PvC modes.
    * - Smooth transitions and modern UI following Ocean Professional theme.
    * - Highlights winning line and shows status.
+   * - Tracks cumulative scores across rounds.
    */
   const [squares, setSquares] = useState(emptyBoard);
   const [mode, setMode] = useState('pvc'); // 'pvp' | 'pvc'
   const [starter, setStarter] = useState('X'); // 'X' | 'O'
   const [xIsNext, setXIsNext] = useState(true);
+
+  // Scores state: cumulative across rounds
+  const [scores, setScores] = useState({ X: 0, O: 0, draws: 0 });
 
   const winnerInfo = useMemo(() => calculateWinner(squares), [squares]);
   const winner = winnerInfo?.player ?? null;
@@ -248,26 +265,50 @@ function App() {
     return () => clearTimeout(timer);
   }, [isAITurn, squares, aiSymbol, isGameOver]);
 
+  // Increment scores when a round concludes
+  useEffect(() => {
+    if (winner) {
+      setScores((prev) => ({ ...prev, [winner]: prev[winner] + 1 }));
+    } else if (!winner && draw) {
+      setScores((prev) => ({ ...prev, draws: prev.draws + 1 }));
+    }
+    // Only trigger when a game ends
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [winner, draw]);
+
+  const resetBoardKeepScores = (newStarter) => {
+    setSquares(emptyBoard());
+    setXIsNext((newStarter ?? starter) === 'X');
+  };
+
   const resetForStarter = (newStarter) => {
     setSquares(emptyBoard());
     setStarter(newStarter);
     setXIsNext(newStarter === 'X');
   };
 
-  // Reset when mode changes to keep state consistent
+  // Reset board when mode changes to keep state consistent (scores persist)
   useEffect(() => {
     resetForStarter(starter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // If starter flips, reset game accordingly
+  // If starter flips, reset game accordingly (scores persist)
   useEffect(() => {
     resetForStarter(starter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [starter]);
 
   // PUBLIC_INTERFACE
-  const handleReset = () => {
+  const handleNewRound = () => {
+    // Clear board; preserve scores, preserve current starter
+    resetBoardKeepScores(starter);
+  };
+
+  // PUBLIC_INTERFACE
+  const handleResetScores = () => {
+    // Reset all scores and board
+    setScores({ X: 0, O: 0, draws: 0 });
     resetForStarter(starter);
   };
 
@@ -280,12 +321,15 @@ function App() {
           <p className="ocean-subtitle">Play locally against a friend or a simple computer opponent.</p>
         </header>
 
+        <Scoreboard scores={scores} />
+
         <Controls
           mode={mode}
           setMode={setMode}
           starter={starter}
           setStarter={setStarter}
-          onReset={handleReset}
+          onNewRound={handleNewRound}
+          onResetScores={handleResetScores}
         />
 
         <Status
@@ -307,7 +351,7 @@ function App() {
         </section>
 
         <footer className="ocean-footer">
-          <span className="hint">Tip: Click Reset Game to start over. Choose mode and starter before making a move.</span>
+          <span className="hint">Tip: Use New Round to continue keeping scores, or Reset Scores to start over.</span>
         </footer>
       </main>
     </div>

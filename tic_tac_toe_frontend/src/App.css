@@ -166,7 +166,7 @@ html, body, #root {
   box-shadow: 0 10px 26px rgba(37, 99, 235, 0.35);
 }
 
-/* Status */
+/* Status / Scoreboard */
 .ttt-status {
   width: 100%;
   max-width: 680px;
