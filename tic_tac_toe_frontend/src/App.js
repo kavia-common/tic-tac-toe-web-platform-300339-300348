@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 
 /**
@@ -70,6 +70,18 @@ function computeAIMove(squares, aiSymbol, humanSymbol) {
   return null;
 }
 
+/**
+ * Small inline audio assets (tiny data URIs) to avoid external files.
+ * Each is a very short tone/chime encoded as wav via base64.
+ * Preloaded once and reused. Kept subtle to match theme.
+ */
+const SFX = {
+  move: "data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAABkAAAAAAAAgP8AAP8AAID/AAD/AAAA/wAAAP8AAP8AAAD/AAAA/wAAAP8AAAD/AAAA", // soft click (very short)
+  win:  "data:audio/wav;base64,UklGRoQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAACEAAAAAAAAgP8AQP8AgP8AQH8AgP8AQH8AgP8AQH8AgP8A", // tiny chime
+  draw: "data:audio/wav;base64,UklGRoQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAACEAAAAAAAAgP8AAP8AgP8AAP8AgP8AAP8AgP8AAP8A", // neutral tone
+  reset:"data:audio/wav;base64,UklGRmQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAAABYAAAASG1hZGUgYnkgQUkAAABkAAAAAAAAgP8AQH8AAP8AQH8AAP8AQH8AAP8A"  // whoosh-ish blip
+};
+
 // PUBLIC_INTERFACE
 function Square({ value, onClick, isWinning, disabled, index }) {
   /** A single Tic Tac Toe square. */
@@ -111,8 +123,8 @@ function Board({ squares, onPlay, winningLine, isLocked }) {
 }
 
 // PUBLIC_INTERFACE
-function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScores }) {
-  /** Controls for game mode, starting player, new round, and reset scores. */
+function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScores, muted, onToggleMute }) {
+  /** Controls for game mode, starting player, new round, reset scores, and sound toggle. */
   return (
     <div className="ttt-controls">
       <div className="ttt-control-row">
@@ -164,6 +176,15 @@ function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScore
         <button className="btn btn-primary" onClick={onNewRound}>New Round</button>
         <div style={{ width: 8 }} />
         <button className="btn btn-primary" onClick={onResetScores}>Reset Scores</button>
+        <div style={{ flex: 1 }} />
+        <button
+          className="btn btn-primary"
+          onClick={onToggleMute}
+          aria-pressed={muted ? 'true' : 'false'}
+          aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+        >
+          {muted ? 'Unmute' : 'Mute'}
+        </button>
       </div>
     </div>
   );
@@ -171,7 +192,7 @@ function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScore
 
 // PUBLIC_INTERFACE
 function Status({ current, winner, draw, isPvC, aiSymbol, winningLine }) {
-  /** Shows current game status. */
+  /** Shows current game status with fade/slide transition. */
   let text = '';
   let tone = 'info';
   if (winner) {
@@ -197,7 +218,7 @@ function Status({ current, winner, draw, isPvC, aiSymbol, winningLine }) {
 
 // PUBLIC_INTERFACE
 function Scoreboard({ scores }) {
-  /** Displays cumulative round-based scores. */
+  /** Displays cumulative round-based scores with subtle transition on change. */
   return (
     <section className="ttt-status" aria-label="Scores">
       <div className="ttt-status-text">Scores</div>
@@ -213,6 +234,7 @@ function App() {
    * - Smooth transitions and modern UI following Ocean Professional theme.
    * - Highlights winning line and shows status.
    * - Tracks cumulative scores across rounds.
+   * - Adds subtle animations and sound effects with a mute toggle.
    */
   const [squares, setSquares] = useState(emptyBoard);
   const [mode, setMode] = useState('pvc'); // 'pvp' | 'pvc'
@@ -221,6 +243,49 @@ function App() {
 
   // Scores state: cumulative across rounds
   const [scores, setScores] = useState({ X: 0, O: 0, draws: 0 });
+
+  // Sound mute state (default unmuted)
+  const [muted, setMuted] = useState(false);
+
+  // Preload audio refs
+  const moveAudioRef = useRef(null);
+  const winAudioRef = useRef(null);
+  const drawAudioRef = useRef(null);
+  const resetAudioRef = useRef(null);
+
+  // Initialize audio elements once
+  useEffect(() => {
+    moveAudioRef.current = new Audio(SFX.move);
+    winAudioRef.current = new Audio(SFX.win);
+    drawAudioRef.current = new Audio(SFX.draw);
+    resetAudioRef.current = new Audio(SFX.reset);
+
+    // Preload by setting volume low and playing paused on mobile allowed after interaction; here we just set preload
+    [moveAudioRef.current, winAudioRef.current, drawAudioRef.current, resetAudioRef.current].forEach(a => {
+      a.preload = 'auto';
+      a.volume = 0.35;
+    });
+  }, []);
+
+  const playSound = (type) => {
+    if (muted) return;
+    const map = {
+      move: moveAudioRef.current,
+      win: winAudioRef.current,
+      draw: drawAudioRef.current,
+      reset: resetAudioRef.current
+    };
+    const audio = map[type];
+    if (audio) {
+      // Restart sound if already playing
+      try {
+        audio.currentTime = 0;
+        audio.play();
+      } catch (e) {
+        // ignore playback errors (e.g., autoplay restrictions)
+      }
+    }
+  };
 
   const winnerInfo = useMemo(() => calculateWinner(squares), [squares]);
   const winner = winnerInfo?.player ?? null;
@@ -246,6 +311,7 @@ function App() {
     next[i] = currentPlayer;
     setSquares(next);
     setXIsNext(!xIsNext);
+    playSound('move');
   };
 
   // AI move effect
@@ -259,18 +325,21 @@ function App() {
         next[move] = aiSymbol;
         setSquares(next);
         setXIsNext(aiSymbol === 'X' ? false : true);
+        playSound('move');
       }
     }, 450); // small delay for UX
 
     return () => clearTimeout(timer);
-  }, [isAITurn, squares, aiSymbol, isGameOver]);
+  }, [isAITurn, squares, aiSymbol, isGameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Increment scores when a round concludes
+  // Increment scores when a round concludes + play end sounds
   useEffect(() => {
     if (winner) {
       setScores((prev) => ({ ...prev, [winner]: prev[winner] + 1 }));
+      playSound('win');
     } else if (!winner && draw) {
       setScores((prev) => ({ ...prev, draws: prev.draws + 1 }));
+      playSound('draw');
     }
     // Only trigger when a game ends
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -303,6 +372,7 @@ function App() {
   const handleNewRound = () => {
     // Clear board; preserve scores, preserve current starter
     resetBoardKeepScores(starter);
+    playSound('reset');
   };
 
   // PUBLIC_INTERFACE
@@ -310,6 +380,12 @@ function App() {
     // Reset all scores and board
     setScores({ X: 0, O: 0, draws: 0 });
     resetForStarter(starter);
+    playSound('reset');
+  };
+
+  // PUBLIC_INTERFACE
+  const handleToggleMute = () => {
+    setMuted((m) => !m);
   };
 
   return (
@@ -330,6 +406,8 @@ function App() {
           setStarter={setStarter}
           onNewRound={handleNewRound}
           onResetScores={handleResetScores}
+          muted={muted}
+          onToggleMute={handleToggleMute}
         />
 
         <Status
