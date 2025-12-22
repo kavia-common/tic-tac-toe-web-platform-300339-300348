@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { loadScoreboard, saveScoreboard, clearScoreboard } from './storage';
 import { loadSettings, saveSettings } from './settingsStorage';
-import { getHistory, addEntry as addHistoryEntry, clearHistory as clearHistoryStorage } from './historyStorage';
+import { getHistory, addEntry as addHistoryEntry, clearHistory as clearHistoryStorage, exportHistoryPayload, mergeHistoryFromImport, replaceHistoryFromImport } from './historyStorage';
 
 /**
  * Ocean Professional Theme
@@ -378,7 +378,7 @@ function Scoreboard({ scores }) {
 }
 
 // PUBLIC_INTERFACE
-function HistoryPanel({ open, onToggleOpen, history, onClear }) {
+function HistoryPanel({ open, onToggleOpen, history, onClear, onExport, onImport, replaceMode, setReplaceMode, warning }) {
   /** Collapsible history panel listing recent matches newest first. */
   return (
     <>
@@ -397,12 +397,29 @@ function HistoryPanel({ open, onToggleOpen, history, onClear }) {
 
       {open && (
         <section id="history-panel" className="settings-panel" aria-label="Match History">
-          <div className="settings-row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="settings-row" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
             <div className="settings-label">Recent Games</div>
-            <div className="settings-controls">
+            <div className="settings-controls" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label className="settings-label" htmlFor="replace-toggle" style={{ fontWeight: 600, fontSize: 12, opacity: 0.85 }}>Replace</label>
+              <input
+                id="replace-toggle"
+                type="checkbox"
+                className="switch"
+                role="switch"
+                aria-checked={replaceMode ? 'true' : 'false'}
+                checked={replaceMode}
+                onChange={(e) => setReplaceMode(e.target.checked)}
+                aria-label="Replace current history when importing"
+              />
+              <button className="btn btn-primary" onClick={onExport} aria-label="Export match history">Export</button>
+              <button className="btn btn-primary" onClick={onImport} aria-label="Import match history">Import</button>
               <button className="btn btn-primary" onClick={onClear}>Clear History</button>
             </div>
           </div>
+
+          {warning ? (
+            <div className="ttt-status-subtle" role="alert" aria-live="polite">{warning}</div>
+          ) : null}
 
           {history.length === 0 ? (
             <div className="ttt-status-subtle">No games played yet.</div>
@@ -477,6 +494,9 @@ function App() {
   // History state and visibility
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState(() => getHistory());
+  const fileInputRef = useRef(null);
+  const [replaceImport, setReplaceImport] = useState(false);
+  const [historyWarning, setHistoryWarning] = useState('');
 
   // Preload audio refs
   const moveAudioRef = useRef(null);
@@ -682,6 +702,59 @@ function App() {
     setHistory([]);
   };
 
+  // PUBLIC_INTERFACE
+  const handleExportHistory = () => {
+    try {
+      const payload = exportHistoryPayload();
+      const pretty = JSON.stringify(payload, null, 2);
+      const blob = new Blob([pretty], { type: 'application/json;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const ts = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const filename = `tic-tac-toe-history-${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.json`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (e) {
+      // Non-blocking warning
+      setHistoryWarning('Export failed.');
+      setTimeout(() => setHistoryWarning(''), 3000);
+      // eslint-disable-next-line no-console
+      console.warn('Export failed', e);
+    }
+  };
+
+  const handleImportClick = () => {
+    if (!fileInputRef.current) return;
+    fileInputRef.current.value = ''; // reset to ensure change event fires
+    fileInputRef.current.click();
+  };
+
+  const handleImportFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const res = replaceImport ? replaceHistoryFromImport(text) : mergeHistoryFromImport(text);
+      if (!res.success) {
+        setHistoryWarning('Invalid import file. No changes applied.');
+        setTimeout(() => setHistoryWarning(''), 3000);
+        return;
+      }
+      setHistory(getHistory());
+      setHistoryWarning('');
+    } catch (err) {
+      setHistoryWarning('Import failed. No changes applied.');
+      setTimeout(() => setHistoryWarning(''), 3000);
+      // eslint-disable-next-line no-console
+      console.warn('Import failed', err);
+    }
+  };
+
   const playSound = (type) => {
     // Respect mute toggle
     if (muted) return;
@@ -759,11 +832,27 @@ function App() {
           />
         </section>
 
+        {/* Hidden file input for imports */}
+        <input
+          type="file"
+          accept="application/json"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleImportFileChange}
+          aria-hidden="true"
+          tabIndex={-1}
+        />
+
         <HistoryPanel
           open={historyOpen}
           onToggleOpen={() => setHistoryOpen((v) => !v)}
           history={history}
           onClear={handleClearHistory}
+          onExport={handleExportHistory}
+          onImport={handleImportClick}
+          replaceMode={replaceImport}
+          setReplaceMode={setReplaceImport}
+          warning={historyWarning}
         />
 
         <footer className="ocean-footer">
