@@ -3,6 +3,7 @@ import './App.css';
 import { loadScoreboard, saveScoreboard, clearScoreboard } from './storage';
 import { loadSettings, saveSettings } from './settingsStorage';
 import { getHistory, addEntry as addHistoryEntry, clearHistory as clearHistoryStorage, exportHistoryPayload, mergeHistoryFromImport, replaceHistoryFromImport } from './historyStorage';
+import { launchConfetti } from './confetti';
 
 /**
  * Ocean Professional Theme
@@ -758,6 +759,44 @@ function App() {
 
   const isGameOver = Boolean(winner) || draw;
 
+  // Track if confetti for this round has already fired to avoid duplicates
+  const confettiFiredRef = useRef(false);
+  const confettiCancelRef = useRef(null);
+
+  // Fire confetti once per win (not on draw), respecting animations settings and reduced motion
+  useEffect(() => {
+    // Only when a winner is declared and we haven't fired yet
+    if (winner && !draw && !confettiFiredRef.current) {
+      confettiFiredRef.current = true;
+
+      // Skip if animations disabled at settings level; utility also respects reduced motion
+      const cancel = launchConfetti({
+        durationMs: 1600,
+        particleCount: Math.max(80, Math.min(220, boardSize * boardSize * 12)),
+        animationsEnabled: Boolean(settings.animationsOn),
+        // rootElement: attach to the app root for proper theming CSS vars
+        rootElement: document.querySelector('.ocean-app') || document.body,
+      });
+      confettiCancelRef.current = cancel;
+    }
+  }, [winner, draw, settings.animationsOn, boardSize]);
+
+  // Cleanup confetti canvas/timers when starting a new round/reset/resetting board
+  const cleanupConfetti = () => {
+    if (confettiCancelRef.current) {
+      try { confettiCancelRef.current(); } catch (_e) {}
+      confettiCancelRef.current = null;
+    }
+    confettiFiredRef.current = false;
+  };
+
+  useEffect(() => {
+    // On unmount, ensure cleanup
+    return () => {
+      cleanupConfetti();
+    };
+  }, []);
+
   const handleUserMove = (i) => {
     if (squares[i] || isGameOver) return;
 
@@ -856,12 +895,14 @@ function App() {
 
   // Reset board when mode changes to keep state consistent (scores persist)
   useEffect(() => {
+    cleanupConfetti();
     resetForStarter(starter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   // Reset board when board size changes
   useEffect(() => {
+    cleanupConfetti();
     setSquares(emptyBoard(boardSize));
     setXIsNext(starter === 'X');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -869,6 +910,7 @@ function App() {
 
   // If starter flips, reset game accordingly (scores persist)
   useEffect(() => {
+    cleanupConfetti();
     resetForStarter(starter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [starter]);
@@ -876,6 +918,7 @@ function App() {
   // PUBLIC_INTERFACE
   const handleNewRound = () => {
     // Clear board; preserve scores, preserve current starter
+    cleanupConfetti();
     resetBoardKeepScores(starter);
     playSound('reset');
   };
@@ -887,6 +930,7 @@ function App() {
     setScores(zeroed);
     // clear persisted scoreboard
     clearScoreboard();
+    cleanupConfetti();
     resetForStarter(starter);
     playSound('reset');
   };
