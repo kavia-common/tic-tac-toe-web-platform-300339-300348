@@ -22,6 +22,14 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* When system prefers dark and the app selects System, App.js adds theme-dark. Provide default doc-level fallback as well */
+@media (prefers-color-scheme: dark) {
+  /* This only helps native form controls if the app uses system theme; the main app still controls theme with classes */
+  :root {
+    color-scheme: dark light;
+  }
+}
+
 img, svg, canvas {
   display: block;
   max-width: 100%;
