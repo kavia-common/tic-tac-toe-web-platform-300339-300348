@@ -32,9 +32,9 @@ beforeEach(() => {
   });
 });
 
-test('renders Tic Tac Toe title', () => {
+test('renders app title', () => {
   render(<App />);
-  expect(screen.getByText(/Tic Tac Toe/i)).toBeInTheDocument();
+  expect(screen.getByText(/tic tac toe awesome game/i)).toBeInTheDocument();
 });
 
 test('renders Scores section and controls', () => {

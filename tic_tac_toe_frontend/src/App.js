@@ -988,7 +988,7 @@ function App() {
       <div className="ocean-background-gradient" aria-hidden="true" />
       <main className="ocean-container">
         <header className="ocean-header">
-          <h1 className="ocean-title">Tic Tac Toe</h1>
+          <h1 className="ocean-title">tic tac toe awesome game</h1>
           <p className="ocean-subtitle">Play locally against a friend or a simple computer opponent.</p>
         </header>
 
