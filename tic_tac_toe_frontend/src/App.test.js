@@ -50,6 +50,55 @@ test('renders Mute toggle control', () => {
   expect(screen.getByRole('button', { name: /Mute sounds|Mute|Unmute sounds|Unmute/i })).toBeInTheDocument();
 });
 
+test('Theme selector toggles dark class and persists; System respects prefers-color-scheme when dark', () => {
+  // Mock prefers-color-scheme: dark
+  const mql = {
+    matches: true,
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+  };
+  window.matchMedia = jest.fn().mockImplementation((q) => {
+    if (q === '(prefers-color-scheme: dark)') return mql;
+    return { matches: false, addEventListener: jest.fn(), removeEventListener: jest.fn(), addListener: jest.fn(), removeListener: jest.fn() };
+  });
+
+  window.localStorage.getItem
+    .mockReturnValueOnce(null) // scoreboard
+    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'normal', boardSize: 3, theme: 'system', palette: 'default', highContrast: false, nonColorCues: true })) // settings
+    .mockReturnValueOnce(JSON.stringify([])); // history
+
+  const { container, unmount } = render(<App />);
+  const appRoot = container.querySelector('.ocean-app');
+
+  // System + prefers dark => theme-dark applied
+  expect(appRoot.className).toMatch(/theme-dark/);
+
+  // Open settings and switch to light
+  const settingsBtn = screen.getByRole('button', { name: /Settings/i });
+  act(() => { fireEvent.click(settingsBtn); });
+  const themeSelect = screen.getByLabelText(/Theme/i);
+  act(() => { fireEvent.change(themeSelect, { target: { value: 'light' } }); });
+  expect(appRoot.className).not.toMatch(/theme-dark/);
+
+  // Persist and reload
+  const saved = window.localStorage.setItem.mock.calls.find(([k]) => k === 'ttt_settings_v1');
+  const lastSaved = JSON.parse(saved[1]);
+  window.localStorage.getItem
+    .mockImplementation((key) => {
+      if (key === 'ttt_scoreboard_v1') return null;
+      if (key === 'ttt_settings_v1') return JSON.stringify(lastSaved);
+      if (key === 'ttt_history_v1') return JSON.stringify([]);
+      return null;
+    });
+
+  unmount();
+  const { container: container2 } = render(<App />);
+  const appRoot2 = container2.querySelector('.ocean-app');
+  expect(appRoot2.className).not.toMatch(/theme-dark/);
+});
+
 test('renders Settings control and panel fields', () => {
   render(<App />);
   const settingsBtn = screen.getByRole('button', { name: /Settings/i });
@@ -67,6 +116,7 @@ test('renders Settings control and panel fields', () => {
   expect(screen.getByLabelText(/Board Size/i)).toBeInTheDocument();
 
   // New accessibility controls
+  expect(screen.getByLabelText(/Theme/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/High Contrast/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/Color Palette/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/Non-color Cues/i)).toBeInTheDocument();
@@ -422,7 +472,7 @@ test('high-contrast toggle adds class and palette select changes theme class; se
   // Prime settings empty for first load
   window.localStorage.getItem
     .mockReturnValueOnce(null) // scoreboard
-    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'normal', boardSize: 3 })) // settings
+    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'normal', boardSize: 3, theme: 'light', palette: 'default', highContrast: false, nonColorCues: true })) // settings
     .mockReturnValueOnce(JSON.stringify([])); // history
 
   const { container, unmount } = render(<App />);
@@ -439,9 +489,15 @@ test('high-contrast toggle adds class and palette select changes theme class; se
   const appRoot = container.querySelector('.ocean-app');
   expect(appRoot.className).toMatch(/high-contrast/);
 
+  // Change palette
   const paletteSelect = screen.getByLabelText(/Color Palette/i);
   act(() => { fireEvent.change(paletteSelect, { target: { value: 'deuteranopia' } }); });
   expect(appRoot.className).toMatch(/theme-deuteranopia/);
+
+  // Toggle dark theme
+  const themeSelect = screen.getByLabelText(/Theme/i);
+  act(() => { fireEvent.change(themeSelect, { target: { value: 'dark' } }); });
+  expect(appRoot.className).toMatch(/theme-dark/);
 
   // Ensure settings persisted by re-mounting
   // Next loads: scoreboard null, settings should be whatever was saved last
@@ -463,6 +519,7 @@ test('high-contrast toggle adds class and palette select changes theme class; se
   const appRoot2 = container2.querySelector('.ocean-app');
   expect(appRoot2.className).toMatch(/high-contrast/);
   expect(appRoot2.className).toMatch(/theme-deuteranopia/);
+  expect(appRoot2.className).toMatch(/theme-dark/);
 });
 
 test('non-color cues visible when enabled: current player indicator and square cue glyphs after a move', () => {

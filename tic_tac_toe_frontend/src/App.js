@@ -317,7 +317,7 @@ function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScore
 /**
  * Settings panel for sounds, animations, and AI difficulty.
  */
-// PUBLIC_INTERFACE
+/* PUBLIC_INTERFACE */
 function SettingsPanel({ open, onToggleOpen, settings, onChange }) {
   /** Accessible settings UI with toggles and select, persisted by parent. */
   return (
@@ -401,6 +401,23 @@ function SettingsPanel({ open, onToggleOpen, settings, onChange }) {
                 <option value={3}>3 x 3</option>
                 <option value={4}>4 x 4</option>
                 <option value={5}>5 x 5</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="theme-select">Theme</label>
+            <div className="settings-controls">
+              <select
+                id="theme-select"
+                className="select"
+                aria-label="Theme"
+                value={settings.theme || 'system'}
+                onChange={(e) => onChange({ ...settings, theme: e.target.value })}
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
               </select>
             </div>
           </div>
@@ -676,12 +693,17 @@ function App() {
     }
   }, [settings.animationsOn]);
 
-  // Apply theme classes at the app root based on palette + high contrast
+  // Apply theme classes at the app root based on palette + high contrast + theme
   const paletteClass =
     settings.palette === 'deuteranopia' ? 'theme-deuteranopia' :
     settings.palette === 'protanopia' ? 'theme-protanopia' :
     settings.palette === 'tritanopia' ? 'theme-tritanopia' : 'theme-default';
   const contrastClass = settings.highContrast ? 'high-contrast' : '';
+
+  // Determine whether dark theme should be active
+  const prefersDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDarkActive = (settings.theme === 'dark') || (settings.theme === 'system' && prefersDark);
+  const themeClass = isDarkActive ? 'theme-dark' : '';
 
   useEffect(() => {
     // Announce changes for screen readers
@@ -692,8 +714,33 @@ function App() {
       'theme-tritanopia': 'Tritanopia-friendly'
     }[paletteClass];
     const contrastText = settings.highContrast ? 'High-Contrast on' : 'High-Contrast off';
-    setAnnouncement(`Palette: ${paletteName}. ${contrastText}.`);
-  }, [paletteClass, settings.highContrast]);
+    const themeText = settings.theme === 'system' ? (isDarkActive ? 'Theme: System (Dark)' : 'Theme: System (Light)') : `Theme: ${settings.theme === 'dark' ? 'Dark' : 'Light'}`;
+    setAnnouncement(`Palette: ${paletteName}. ${contrastText}. ${themeText}.`);
+  }, [paletteClass, settings.highContrast, settings.theme, isDarkActive]);
+
+  // React to changes of system preference when theme is 'system'
+  useEffect(() => {
+    if (!(typeof window !== 'undefined' && window.matchMedia)) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => {
+      if (settings.theme === 'system') {
+        // Trigger rerender by updating a no-op state via settings to persist? Not needed; state reads mq dynamically.
+        setAnnouncement((a) => a); // noop to inform SR region might update text on next render
+      }
+    };
+    if (mq.addEventListener) {
+      mq.addEventListener('change', handler);
+    } else if (mq.addListener) {
+      mq.addListener(handler);
+    }
+    return () => {
+      if (mq.removeEventListener) {
+        mq.removeEventListener('change', handler);
+      } else if (mq.removeListener) {
+        mq.removeListener(handler);
+      }
+    };
+  }, [settings.theme]);
 
   const boardSize = settings.boardSize || 3;
 
@@ -937,7 +984,7 @@ function App() {
   };
 
   return (
-    <div className={`ocean-app ${paletteClass} ${contrastClass}`}>
+    <div className={`ocean-app ${paletteClass} ${contrastClass} ${themeClass}`}>
       <div className="ocean-background-gradient" aria-hidden="true" />
       <main className="ocean-container">
         <header className="ocean-header">

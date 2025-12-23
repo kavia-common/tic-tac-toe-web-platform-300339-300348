@@ -1,6 +1,10 @@
 :root {
   color-scheme: light only;
 }
+/* Allow dark UI form controls when in dark theme */
+.theme-dark {
+  color-scheme: dark;
+}
 
 *,
 *::before,

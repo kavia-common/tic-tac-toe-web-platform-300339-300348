@@ -12,6 +12,7 @@ function normalizeSettings(raw) {
     palette: 'default', // 'default' | 'deuteranopia' | 'protanopia' | 'tritanopia'
     highContrast: false, // accessibility high-contrast mode
     nonColorCues: true, // enable non-color cues for marks and status
+    theme: 'system', // 'light' | 'dark' | 'system'
   };
   if (!raw || typeof raw !== 'object') return defaults;
 
@@ -26,7 +27,10 @@ function normalizeSettings(raw) {
   const highContrast = typeof raw.highContrast === 'boolean' ? raw.highContrast : defaults.highContrast;
   const nonColorCues = typeof raw.nonColorCues === 'boolean' ? raw.nonColorCues : defaults.nonColorCues;
 
-  return { soundsOn, animationsOn, difficulty, boardSize, palette, highContrast, nonColorCues };
+  const themeAllowed = ['light', 'dark', 'system'];
+  const theme = themeAllowed.includes(raw.theme) ? raw.theme : defaults.theme;
+
+  return { soundsOn, animationsOn, difficulty, boardSize, palette, highContrast, nonColorCues, theme };
 }
 
 // PUBLIC_INTERFACE
