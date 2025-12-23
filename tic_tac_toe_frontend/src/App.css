@@ -207,6 +207,18 @@ html, body, #root {
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #0b1220; /* Darker for light mode to increase contrast */
+
+  /* Title background chip */
+  display: inline-block;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(37,99,235,0.06), rgba(255,255,255,0.9));
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  /* subtle text shadow for readability on complex backgrounds in light mode only */
+  text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+  transition: background var(--anim-fast) ease, color var(--anim-fast) ease, box-shadow var(--anim-fast) ease, border-color var(--anim-fast) ease;
 }
 
 /* Preserve original color for dark and high-contrast modes */
@@ -214,6 +226,24 @@ html, body, #root {
 .high-contrast .ocean-title,
 .theme-dark.high-contrast .ocean-title {
   color: var(--text);
+}
+
+/* Dark mode: darker chip with visible border and no light text shadow */
+.theme-dark .ocean-title {
+  background: linear-gradient(180deg, rgba(96,165,250,0.10), rgba(15,23,42,0.96));
+  box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+  border-color: var(--border);
+  text-shadow: none;
+}
+
+/* High-contrast: remove decoration; rely on strong border for clarity */
+.high-contrast .ocean-title,
+.theme-dark.high-contrast .ocean-title {
+  background: #fff;
+  color: #000;
+  box-shadow: none;
+  border: 2px solid var(--accent-outline);
+  text-shadow: none;
 }
 /* Generic anchors/interactive text */
 a, .link {
@@ -807,6 +837,11 @@ a:focus-visible, .link:focus-visible {
 /* Small screens adjustments */
 @media (max-width: 380px) {
   :root { --square-size: 94px; }
+  .ocean-title {
+    font-size: 28px;
+    padding: 8px 12px;
+    border-radius: 12px;
+  }
 }
 
 /* History styles */
