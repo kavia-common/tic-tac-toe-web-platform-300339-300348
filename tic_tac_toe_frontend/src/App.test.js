@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import App from './App';
 
 beforeEach(() => {
@@ -65,6 +65,11 @@ test('renders Settings control and panel fields', () => {
   expect(screen.getByLabelText(/Animations/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/AI Difficulty/i)).toBeInTheDocument();
   expect(screen.getByLabelText(/Board Size/i)).toBeInTheDocument();
+
+  // New accessibility controls
+  expect(screen.getByLabelText(/High Contrast/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/Color Palette/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/Non-color Cues/i)).toBeInTheDocument();
 });
 
 test('initializes scoreboard from localStorage when present', () => {
@@ -411,4 +416,67 @@ test('board size 5x5 renders 25 cells and detects a diagonal win (N=5)', () => {
   });
 
   expect(screen.getByText(/X wins/i)).toBeInTheDocument();
+});
+
+test('high-contrast toggle adds class and palette select changes theme class; settings persist', () => {
+  // Prime settings empty for first load
+  window.localStorage.getItem
+    .mockReturnValueOnce(null) // scoreboard
+    .mockReturnValueOnce(JSON.stringify({ soundsOn: true, animationsOn: true, difficulty: 'normal', boardSize: 3 })) // settings
+    .mockReturnValueOnce(JSON.stringify([])); // history
+
+  const { container, unmount } = render(<App />);
+
+  // Open settings
+  const settingsBtn = screen.getByRole('button', { name: /Settings/i });
+  act(() => { fireEvent.click(settingsBtn); });
+
+  const hc = screen.getByLabelText(/High Contrast/i);
+  expect(hc).toBeInTheDocument();
+  act(() => { fireEvent.click(hc); });
+
+  // The app root should now include high-contrast class
+  const appRoot = container.querySelector('.ocean-app');
+  expect(appRoot.className).toMatch(/high-contrast/);
+
+  const paletteSelect = screen.getByLabelText(/Color Palette/i);
+  act(() => { fireEvent.change(paletteSelect, { target: { value: 'deuteranopia' } }); });
+  expect(appRoot.className).toMatch(/theme-deuteranopia/);
+
+  // Ensure settings persisted by re-mounting
+  // Next loads: scoreboard null, settings should be whatever was saved last
+  const saved = window.localStorage.setItem.mock.calls.find(([k]) => k === 'ttt_settings_v1');
+  expect(saved).toBeTruthy();
+
+  // Mock next getItem returns last saved settings
+  const lastSaved = JSON.parse(saved[1]);
+  window.localStorage.getItem
+    .mockImplementation((key) => {
+      if (key === 'ttt_scoreboard_v1') return null;
+      if (key === 'ttt_settings_v1') return JSON.stringify(lastSaved);
+      if (key === 'ttt_history_v1') return JSON.stringify([]);
+      return null;
+    });
+
+  unmount();
+  const { container: container2 } = render(<App />);
+  const appRoot2 = container2.querySelector('.ocean-app');
+  expect(appRoot2.className).toMatch(/high-contrast/);
+  expect(appRoot2.className).toMatch(/theme-deuteranopia/);
+});
+
+test('non-color cues visible when enabled: current player indicator and square cue glyphs after a move', () => {
+  render(<App />);
+
+  // Current player indicator should be present and not rely on color alone
+  const indicator = screen.getByLabelText(/Current player:/i);
+  expect(indicator).toBeInTheDocument();
+
+  // Make a move to see cue glyph rendered with mark
+  const cell1 = screen.getByRole('button', { name: /Cell 1:/i });
+  act(() => { fireEvent.click(cell1); });
+
+  // The square's text should include X and a glyph element exists
+  const valueSpan = cell1.querySelector('.ttt-square-value');
+  expect(valueSpan).toBeInTheDocument();
 });

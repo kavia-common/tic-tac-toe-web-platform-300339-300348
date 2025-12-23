@@ -1,5 +1,6 @@
 /* Ocean Professional Theme Variables */
 :root {
+  /* Base palette variables (will be overridden by theme classes) */
   --primary: #2563EB; /* blue-600 */
   --secondary: #F59E0B; /* amber-500 */
   --success: #F59E0B; /* amber-500 */
@@ -7,6 +8,7 @@
   --bg: #f9fafb;
   --surface: #ffffff;
   --text: #111827;
+  --accent-outline: #0b5dd7;
 
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
@@ -24,6 +26,66 @@
 
   /* Ripple color for primary buttons */
   --ripple: rgba(37, 99, 235, 0.35);
+}
+
+/* Theme palettes (Ocean default and color-blind-friendly) */
+.theme-default {
+  --primary: #2563EB;
+  --secondary: #F59E0B;
+  --success: #16a34a;
+  --error: #EF4444;
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --text: #111827;
+  --accent-outline: #0b5dd7;
+}
+
+/* Deuteranopia-friendly: choose blue and purple pair for X/O */
+.theme-deuteranopia {
+  --primary: #1D4ED8;  /* deep blue for X */
+  --secondary: #7C3AED; /* purple for O */
+  --success: #0284C7;
+  --error: #B91C1C;
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --text: #111827;
+  --accent-outline: #1D4ED8;
+}
+
+/* Protanopia-friendly: use cyan and orange, distinct luminance */
+.theme-protanopia {
+  --primary: #0891B2;  /* cyan */
+  --secondary: #EA580C; /* orange */
+  --success: #0EA5E9;
+  --error: #B91C1C;
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --text: #111827;
+  --accent-outline: #0EA5E9;
+}
+
+/* Tritanopia-friendly: red and green with strong contrast */
+.theme-tritanopia {
+  --primary: #B91C1C;  /* red */
+  --secondary: #16A34A; /* green */
+  --success: #16A34A;
+  --error: #B91C1C;
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --text: #111827;
+  --accent-outline: #0b5dd7;
+}
+
+/* High-contrast modifier ensures near-black text/near-white bg, bold outlines */
+.high-contrast {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --text: #000000;
+  --primary: #000000;   /* used for outlines and critical accents; text remains black */
+  --secondary: #000000;
+  --success: #000000;
+  --error: #000000;
+  --accent-outline: #000000;
 }
 
 @media (min-width: 480px) {
@@ -51,6 +113,11 @@ html, body, #root {
   background: radial-gradient(1200px 600px at 10% -10%, rgba(37, 99, 235, 0.08), rgba(249, 250, 251, 0)),
               linear-gradient(180deg, rgba(255,255,255,0.9), rgba(249,250,251,1));
   pointer-events: none;
+}
+
+/* Reduce gradient flair in high-contrast to keep contrast strong */
+.high-contrast .ocean-background-gradient {
+  background: none;
 }
 
 .ocean-container {
@@ -81,6 +148,11 @@ html, body, #root {
   font-size: 14px;
 }
 
+/* Increase subtitle contrast in high-contrast mode */
+.high-contrast .ocean-subtitle {
+  color: #000;
+}
+
 .ocean-surface {
   background: var(--surface);
   border-radius: var(--radius);
@@ -99,9 +171,19 @@ html, body, #root {
   box-shadow: 0 16px 40px rgba(0,0,0,0.12);
 }
 
+/* Stronger outline in high-contrast */
+.high-contrast .ocean-surface {
+  box-shadow: none;
+  border: 2px solid var(--accent-outline);
+}
+
 .ocean-footer .hint {
   font-size: 12px;
   color: rgba(17, 24, 39, 0.6);
+}
+/* Increase contrast for hint text in high-contrast */
+.high-contrast .ocean-footer .hint {
+  color: #000;
 }
 
 /* Controls */
@@ -115,6 +197,10 @@ html, body, #root {
   display: grid;
   gap: 12px;
 }
+.high-contrast .ttt-controls {
+  border: 2px solid var(--accent-outline);
+  box-shadow: none;
+}
 
 .ttt-control-row {
   display: grid;
@@ -126,6 +212,9 @@ html, body, #root {
   color: rgba(17, 24, 39, 0.85);
   font-size: 13px;
 }
+.high-contrast .ttt-label {
+  color: var(--text);
+}
 
 .ttt-segmented {
   display: inline-flex;
@@ -134,6 +223,11 @@ html, body, #root {
   padding: 6px;
   gap: 6px;
   box-shadow: inset 0 1px 1px rgba(0,0,0,0.03);
+}
+.high-contrast .ttt-segmented {
+  background: #fff;
+  border: 2px solid var(--accent-outline);
+  box-shadow: none;
 }
 .ttt-segmented .ttt-segment {
   border: none;
@@ -157,6 +251,27 @@ html, body, #root {
   color: var(--primary);
   box-shadow: var(--shadow-sm);
 }
+.high-contrast .ttt-segmented .ttt-segment.active {
+  outline: 2px solid var(--accent-outline);
+}
+
+.current-player-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.high-contrast .current-player-indicator {
+  outline: 2px solid var(--accent-outline);
+}
+.current-player-indicator .indicator-dot {
+  font-size: 10px;
+}
 
 /* Buttons */
 .btn {
@@ -172,6 +287,10 @@ html, body, #root {
 .btn:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(37,99,235,0.35), var(--shadow-md);
+}
+.high-contrast .btn:focus {
+  box-shadow: none;
+  outline: 3px solid var(--accent-outline);
 }
 .btn:active { transform: translateY(0); }
 .btn-primary {
@@ -211,9 +330,16 @@ html, body, #root {
   will-change: transform, opacity;
   transition: opacity var(--anim-normal) ease, transform var(--anim-normal) ease;
 }
+.high-contrast .ttt-status {
+  border: 2px solid var(--accent-outline);
+  background: #fff;
+  box-shadow: none;
+}
 .ttt-status-info .ttt-status-text { color: var(--primary); }
 .ttt-status-success .ttt-status-text { color: var(--secondary); }
 .ttt-status-warning .ttt-status-text { color: #6b7280; }
+.high-contrast .ttt-status .ttt-status-text,
+.high-contrast .ttt-status .ttt-status-subtle { color: #000; }
 .ttt-status .ttt-status-text {
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -233,6 +359,11 @@ html, body, #root {
   border-radius: var(--radius);
   background: linear-gradient(145deg, #e5e7eb, #ffffff);
   box-shadow: inset 0 2px 10px rgba(0,0,0,0.06);
+}
+.high-contrast .ttt-board {
+  background: #fff;
+  box-shadow: none;
+  outline: 2px solid var(--accent-outline);
 }
 
 /* Helper classes to set --board-size from React */
@@ -272,6 +403,10 @@ html, body, #root {
   box-shadow: 0 12px 28px rgba(0,0,0,0.12);
   border-color: rgba(37,99,235,0.25);
 }
+.high-contrast .ttt-square {
+  border: 2px solid var(--accent-outline);
+  box-shadow: none;
+}
 .ttt-square:active {
   transform: translateY(0) scale(0.98);
 }
@@ -286,6 +421,16 @@ html, body, #root {
   color: var(--text);
   transition: color var(--anim-fast) ease, transform var(--anim-fast) ease, opacity var(--anim-fast) ease;
   animation: pop-in var(--anim-slow) ease both;
+  position: relative;
+}
+
+/* Non-color cue glyph sits slightly offset */
+.ttt-square-cue .ttt-square-cue {
+  position: absolute;
+  bottom: 6px;
+  right: 10px;
+  font-size: calc(var(--square-size) * 0.2);
+  opacity: 0.65;
 }
 
 .ttt-square-X .ttt-square-value {
@@ -297,14 +442,21 @@ html, body, #root {
   text-shadow: 0 6px 18px rgba(245,158,11,0.25);
 }
 
+/* High-contrast winning state: strong outline instead of color glow */
 .ttt-square-win {
   background: linear-gradient(180deg, rgba(37,99,235,0.1), rgba(255,255,255,0.9));
   border-color: rgba(37,99,235,0.35);
   box-shadow: 0 10px 28px rgba(37,99,235,0.25), inset 0 0 0 2px rgba(37,99,235,0.15);
   animation: pulse-win 1200ms ease-in-out infinite;
 }
+.high-contrast .ttt-square-win {
+  background: #fff;
+  border-color: var(--accent-outline);
+  box-shadow: none;
+  outline: 3px solid var(--accent-outline);
+}
 
-/* Actions row */
+ /* Actions row */
 .ttt-actions {
   display: flex;
   justify-content: flex-end;
@@ -316,6 +468,10 @@ html, body, #root {
 .ttt-square:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(37,99,235,0.35), var(--shadow-md);
+}
+.high-contrast .ttt-square:focus {
+  box-shadow: none;
+  outline: 3px solid var(--accent-outline);
 }
 
 /* Reduced motion support */
@@ -360,6 +516,10 @@ html, body, #root {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
+.high-contrast .settings-trigger {
+  border: 2px solid var(--accent-outline);
+  box-shadow: none;
+}
 
 .settings-panel {
   margin-top: 8px;
@@ -371,6 +531,10 @@ html, body, #root {
   padding: 16px;
   display: grid;
   gap: 12px;
+}
+.high-contrast .settings-panel {
+  border: 2px solid var(--accent-outline);
+  box-shadow: none;
 }
 
 .settings-row {
@@ -384,6 +548,9 @@ html, body, #root {
   font-weight: 600;
   color: rgba(17, 24, 39, 0.85);
   font-size: 13px;
+}
+.high-contrast .settings-label {
+  color: var(--text);
 }
 
 .settings-controls {
@@ -449,6 +616,11 @@ html, body, #root {
   border: 1px solid rgba(0,0,0,0.06);
   box-shadow: var(--shadow-sm);
 }
+.high-contrast .history-row {
+  background: #fff;
+  border: 2px solid var(--accent-outline);
+  box-shadow: none;
+}
 
 .history-index {
   font-weight: 800;
@@ -456,6 +628,7 @@ html, body, #root {
   min-width: 28px;
   text-align: right;
 }
+.high-contrast .history-index { color: #000; }
 
 .history-badge {
   display: inline-flex;
@@ -486,4 +659,7 @@ html, body, #root {
 .history-info {
   color: rgba(17,24,39,0.75);
   font-size: 13px;
+}
+.high-contrast .history-info {
+  color: #000;
 }

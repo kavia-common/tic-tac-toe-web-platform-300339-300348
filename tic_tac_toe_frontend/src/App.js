@@ -195,23 +195,28 @@ const SFX = {
 };
 
 // PUBLIC_INTERFACE
-function Square({ value, onClick, isWinning, disabled, index }) {
+function Square({ value, onClick, isWinning, disabled, index, cuesOn }) {
   /** A single Tic Tac Toe square. */
   const label = value ? `Cell ${index + 1}: ${value}` : `Cell ${index + 1}: empty`;
+  // Additional non-color cue: subtle pattern/outline glyph
+  const cueChar = value === 'X' ? '✖' : value === 'O' ? '◯' : '';
   return (
     <button
-      className={`ttt-square ${isWinning ? 'ttt-square-win' : ''} ${value ? `ttt-square-${value}` : ''}`}
+      className={`ttt-square ${isWinning ? 'ttt-square-win' : ''} ${value ? `ttt-square-${value}` : ''} ${cuesOn ? 'ttt-square-cues' : ''}`}
       onClick={onClick}
       disabled={disabled || Boolean(value)}
       aria-label={label}
     >
-      <span className="ttt-square-value">{value}</span>
+      <span className="ttt-square-value">
+        {value}
+        {cuesOn && value ? <span className="ttt-square-cue" aria-hidden="true">{cueChar}</span> : null}
+      </span>
     </button>
   );
 }
 
 // PUBLIC_INTERFACE
-function Board({ squares, onPlay, winningLine, isLocked, boardSize }) {
+function Board({ squares, onPlay, winningLine, isLocked, boardSize, cuesOn }) {
   /** N x N Board displaying squares. */
   const renderSquare = (i) => {
     const isWinning = winningLine?.includes(i);
@@ -223,6 +228,7 @@ function Board({ squares, onPlay, winningLine, isLocked, boardSize }) {
         isWinning={isWinning}
         disabled={isLocked}
         onClick={() => onPlay(i)}
+        cuesOn={cuesOn}
       />
     );
   };
@@ -237,7 +243,7 @@ function Board({ squares, onPlay, winningLine, isLocked, boardSize }) {
 }
 
 // PUBLIC_INTERFACE
-function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScores, muted, onToggleMute }) {
+function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScores, muted, onToggleMute, currentPlayer }) {
   /** Controls for game mode, starting player, new round, reset scores, and sound toggle. */
   return (
     <div className="ttt-controls">
@@ -291,6 +297,10 @@ function Controls({ mode, setMode, starter, setStarter, onNewRound, onResetScore
         <div style={{ width: 8 }} />
         <button className="btn btn-primary" onClick={onResetScores}>Reset Scores</button>
         <div style={{ flex: 1 }} />
+        <div aria-live="polite" className="current-player-indicator" aria-label={`Current player: ${currentPlayer}`}>
+          <span className="indicator-dot" aria-hidden="true">●</span>
+          <span className="indicator-text">Player {currentPlayer}</span>
+        </div>
         <button
           className="btn btn-primary"
           onClick={onToggleMute}
@@ -394,6 +404,54 @@ function SettingsPanel({ open, onToggleOpen, settings, onChange }) {
               </select>
             </div>
           </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="hc-toggle">High Contrast</label>
+            <div className="settings-controls">
+              <input
+                id="hc-toggle"
+                type="checkbox"
+                className="switch"
+                role="switch"
+                aria-checked={settings.highContrast ? 'true' : 'false'}
+                checked={settings.highContrast}
+                onChange={(e) => onChange({ ...settings, highContrast: e.target.checked })}
+              />
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="palette-select">Color Palette</label>
+            <div className="settings-controls">
+              <select
+                id="palette-select"
+                className="select"
+                aria-label="Color Palette"
+                value={settings.palette}
+                onChange={(e) => onChange({ ...settings, palette: e.target.value })}
+              >
+                <option value="default">Default (Ocean)</option>
+                <option value="deuteranopia">Deuteranopia-friendly</option>
+                <option value="protanopia">Protanopia-friendly</option>
+                <option value="tritanopia">Tritanopia-friendly</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="cues-toggle">Non-color Cues</label>
+            <div className="settings-controls">
+              <input
+                id="cues-toggle"
+                type="checkbox"
+                className="switch"
+                role="switch"
+                aria-checked={settings.nonColorCues ? 'true' : 'false'}
+                checked={settings.nonColorCues}
+                onChange={(e) => onChange({ ...settings, nonColorCues: e.target.checked })}
+              />
+            </div>
+          </div>
         </section>
       )}
     </>
@@ -401,7 +459,7 @@ function SettingsPanel({ open, onToggleOpen, settings, onChange }) {
 }
 
 // PUBLIC_INTERFACE
-function Status({ current, winner, draw, isPvC, aiSymbol, winningLine }) {
+function Status({ current, winner, draw, isPvC, aiSymbol, winningLine, nonColorCues }) {
   /** Shows current game status with fade/slide transition. */
   let text = '';
   let tone = 'info';
@@ -418,7 +476,10 @@ function Status({ current, winner, draw, isPvC, aiSymbol, winningLine }) {
 
   return (
     <div className={`ttt-status ttt-status-${tone}`} role="status" aria-live="polite">
-      <div className="ttt-status-text">{text}</div>
+      <div className="ttt-status-text">
+        {text}
+        {nonColorCues && !winner && !draw ? <span className="status-cue" aria-hidden="true"> ▸</span> : null}
+      </div>
       {winner && winningLine && (
         <div className="ttt-status-subtle">Winning line: {winningLine.map(i => i + 1).join(' - ')}</div>
       )}
@@ -526,7 +587,8 @@ function App() {
    * - Adds subtle animations and sound effects with a mute toggle.
    * - Records match history with timestamps and settings.
    */
-  const [squares, setSquares] = useState(() => emptyBoard(loadSettings().boardSize || 3));
+  const initialSettings = loadSettings();
+  const [squares, setSquares] = useState(() => emptyBoard(initialSettings.boardSize || 3));
   const [mode, setMode] = useState('pvc'); // 'pvp' | 'pvc'
   const [starter, setStarter] = useState('X'); // 'X' | 'O'
   const [xIsNext, setXIsNext] = useState(true);
@@ -546,10 +608,13 @@ function App() {
 
   // Settings state
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState(() => loadSettings());
+  const [settings, setSettings] = useState(() => initialSettings);
 
   // Sound mute state derived from settings.soundsOn
   const [muted, setMuted] = useState(() => !settings.soundsOn);
+
+  // Announce theme changes
+  const [announcement, setAnnouncement] = useState('');
 
   // History state and visibility
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -610,6 +675,25 @@ function App() {
       document.body.classList.remove(cls);
     }
   }, [settings.animationsOn]);
+
+  // Apply theme classes at the app root based on palette + high contrast
+  const paletteClass =
+    settings.palette === 'deuteranopia' ? 'theme-deuteranopia' :
+    settings.palette === 'protanopia' ? 'theme-protanopia' :
+    settings.palette === 'tritanopia' ? 'theme-tritanopia' : 'theme-default';
+  const contrastClass = settings.highContrast ? 'high-contrast' : '';
+
+  useEffect(() => {
+    // Announce changes for screen readers
+    const paletteName = {
+      'theme-default': 'Default (Ocean)',
+      'theme-deuteranopia': 'Deuteranopia-friendly',
+      'theme-protanopia': 'Protanopia-friendly',
+      'theme-tritanopia': 'Tritanopia-friendly'
+    }[paletteClass];
+    const contrastText = settings.highContrast ? 'High-Contrast on' : 'High-Contrast off';
+    setAnnouncement(`Palette: ${paletteName}. ${contrastText}.`);
+  }, [paletteClass, settings.highContrast]);
 
   const boardSize = settings.boardSize || 3;
 
@@ -853,13 +937,17 @@ function App() {
   };
 
   return (
-    <div className="ocean-app">
+    <div className={`ocean-app ${paletteClass} ${contrastClass}`}>
       <div className="ocean-background-gradient" aria-hidden="true" />
       <main className="ocean-container">
         <header className="ocean-header">
           <h1 className="ocean-title">Tic Tac Toe</h1>
           <p className="ocean-subtitle">Play locally against a friend or a simple computer opponent.</p>
         </header>
+
+        <div className="sr-announcer" aria-live="polite" style={{position:'absolute',width:1,height:1,overflow:'hidden',clip:'rect(1px,1px,1px,1px)'}}>
+          {announcement}
+        </div>
 
         <Scoreboard scores={scores} />
 
@@ -881,6 +969,7 @@ function App() {
           onResetScores={handleResetScores}
           muted={muted}
           onToggleMute={handleToggleMute}
+          currentPlayer={xIsNext ? 'X' : 'O'}
         />
 
         <Status
@@ -890,6 +979,7 @@ function App() {
           isPvC={isPvC}
           aiSymbol={aiSymbol}
           winningLine={winningLine}
+          nonColorCues={settings.nonColorCues}
         />
 
         <section className="ocean-surface">
@@ -899,6 +989,7 @@ function App() {
             winningLine={winningLine}
             isLocked={isAITurn || isGameOver}
             boardSize={boardSize}
+            cuesOn={settings.nonColorCues}
           />
         </section>
 
