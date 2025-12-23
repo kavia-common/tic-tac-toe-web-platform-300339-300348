@@ -206,6 +206,13 @@ html, body, #root {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.02em;
+  color: #0b1220; /* Darker for light mode to increase contrast */
+}
+
+/* Preserve original color for dark and high-contrast modes */
+.theme-dark .ocean-title,
+.high-contrast .ocean-title,
+.theme-dark.high-contrast .ocean-title {
   color: var(--text);
 }
 /* Generic anchors/interactive text */
