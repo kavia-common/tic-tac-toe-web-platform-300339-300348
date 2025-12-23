@@ -68,3 +68,39 @@ import '@testing-library/jest-dom';
     });
   }
 })();
+
+/**
+ * Polyfill for window.matchMedia in jsdom.
+ * Provides minimal implementation used by theme detection and listeners.
+ * Only defines if not already present.
+ */
+(function applyMatchMediaPolyfill() {
+  if (typeof window === 'undefined' || typeof window.matchMedia === 'function') {
+    return;
+  }
+
+  // PUBLIC_INTERFACE-like docs for the test environment polyfill object
+  const createMql = (query) => {
+    let _matches = false; // default per requirement
+    // A simple object conforming to the MediaQueryList-ish interface
+    const mql = {
+      matches: _matches,
+      media: String(query),
+      onchange: null,
+      // Deprecated API no-ops
+      addListener: () => {},
+      removeListener: () => {},
+      // Modern EventTarget-like no-ops
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    };
+    return mql;
+  };
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query) => createMql(query),
+  });
+})();
